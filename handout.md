@@ -194,6 +194,21 @@ Full local `go build/vet/test` pass. Production redeploy (new `liveurld` binary 
 
 ---
 
+## 7a. Build timeline — self-serve signup
+
+Closed §9 item 3 from the prior session: accounts previously only existed via an operator running `liveurld seed`. Added, **local-only so far — not yet deployed to `tideover.site`** (see the note at the end of this section):
+
+- **Migration `0002_password_auth.sql`**: adds a nullable `password_hash` column to `users`. Nullable because `liveurld seed`-created accounts still have no password and stay CLI-token-only.
+- **`internal/store/users.go`**: `Store.SignUp(ctx, email, password)` — bcrypt-hashes the password, inserts the user and mints its first auth token in one transaction, and fails with `ErrEmailTaken` if the email is already registered **for any reason, including a password-less seeded account** — letting signup attach a password to an existing seeded email would let anyone take over an operator-provisioned account just by knowing its address. `Store.VerifyPassword(ctx, email, password)` returns one generic `ErrInvalidCredentials` for every failure mode (unknown email, no password set, wrong password) so a login form can't be used to enumerate registered emails.
+- **`internal/control/server.go`**: two new unauthenticated routes, `POST /api/signup` and `POST /api/login` (reachable publicly at `/dashboard/api/signup`/`/login`). Signup returns `{email, token}` immediately — no email verification step exists anywhere in this deployment (there's no outbound email sending at all yet), so the token is shown once at signup time, matching how `auth_tokens` has always worked (only the SHA-256 hash is ever persisted — this is also why login can't redisplay an old token and instead mints a fresh one on every successful login). Both routes sit behind a dedicated, tightly-budgeted IP rate limiter (~5 attempts/minute) so password guessing is impractical — separate from and much stricter than the existing per-IP dashboard limiter.
+- **Reused, not duplicated, the existing rate limiter**: `internal/edge`'s private `ipLimiter`/`newIPLimiter` were exported to `IPLimiter`/`NewIPLimiter` specifically so `internal/control` could reuse the same token-bucket implementation instead of a second copy.
+- **Dashboard UI** (`internal/dashboard/web/`): the old single "paste a token" screen is now three tabs — Sign up / Log in / Have a token? — plus a one-time token-reveal screen with a copy button and "Continue to dashboard," which logs straight in using the token still held in memory.
+- **Bug found and fixed while adding tests**: `Store.Migrate` had a latent race — two concurrent callers could both see a brand-new migration as "not yet applied" and race to `INSERT` the same `schema_migrations` primary key, one failing with a duplicate-key error. Pre-existing, but invisible before because only one test package (`replay`) ever called `Migrate` against the shared local Postgres; adding `store` and `control` package tests that also call it made it fire reliably. Fixed with a `pg_advisory_lock` held for the duration of `Migrate`, acquired on a single pooled connection (advisory locks are session-scoped, so lock/unlock must happen on the same connection, not through the pool).
+- **Verified**: full `go build/vet/test ./...` pass against the real local Postgres/Redis (docker-compose, ports 5433/6380); then manually end-to-end against a locally-running `liveurld` (alternate ports 8090/8091/4444, to avoid disturbing an already-running local dev instance) via direct HTTP calls mirroring exactly what the dashboard's JS sends: signup → 201 with a usable token, duplicate signup → 409, login with right password → 200 with a *different* fresh token, login with wrong password → 401, 6 rapid logins from one IP → 429 on the 6th.
+- **Not yet done**: this has **not been deployed to `tideover.site`** — production is still running the pre-signup binary and hasn't had `0002_password_auth.sql` applied. Deploying is the same cross-compile-and-`scp`-and-restart cycle described in §5/§7 (the systemd service runs `liveurld serve`, which calls `st.Migrate` on startup, so the new migration will apply automatically on first restart with the new binary).
+
+---
+
 ## 8. Current production access reference
 
 - SSH: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192`
@@ -211,9 +226,9 @@ Full local `go build/vet/test` pass. Production redeploy (new `liveurld` binary 
 
 In rough priority order for "continue the talk":
 
-1. **No git repository.** Nothing is committed or pushed. This blocks actually cutting a release (goreleaser needs git tags), and is generally risky (no history, no backup beyond the local disk). Likely the very next thing to do.
+1. **Git repo exists locally but has never been pushed anywhere.** Initialized with two commits: distribution scaffolding + this handout, then the self-serve signup work (see §7a). No remote configured, no tag cut yet — goreleaser needs a real tag to produce a real release. Cutting one, and creating/pushing to a GitHub remote, is a "visible to others" action this project's own norms say to confirm with the user first (see §10).
 2. **Homebrew tap / npm publish / winget PR are all scaffolded but not executed** — each needs a one-time manual account/secret setup step from the user (see §7's Distribution section for exactly what each needs).
-3. **No self-serve signup** — accounts only exist via `liveurld seed` (an admin/operator action), not a real signup flow. This is the biggest gap between "a tool I self-host" and "a product people sign up for."
+3. ~~No self-serve signup~~ **Done** — see §7a. `POST /api/signup`/`/api/login` on the dashboard's API now let users create an account and get a token without an operator running `liveurld seed`. Still open beneath that: no email verification/password-reset (no outbound email sending exists anywhere in this deployment yet), and no billing/plan tiers.
 4. **Snapshot cache is passive-only** — a page is only cached if someone actually visited it while the agent was online. An active crawler (e.g. Playwright walking the app through the live tunnel) was discussed as the fast-follow.
 5. **Single edge node / single region** — no multi-node routing exists; the in-memory rate limiter and presence tracking assume this.
 6. **The classifier's JSON-POST misclassification limitation** (§3) — not fixed, deliberately demonstrated instead. A "never buffer this path" declaration (inverse of `--buffer`) would fix it.
@@ -225,6 +240,6 @@ In rough priority order for "continue the talk":
 ## 10. How to pick this up in a new session
 
 Read this file, then:
-- `cd "c:\Users\tehma\Desktop\Live URL Project"`, check `git status` equivalent expectations — remember there's **no repo yet**, so don't assume version control safety nets exist.
-- Confirm production is still healthy: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192 "sudo systemctl status liveurld"` and/or just visit `https://tideover.site/dashboard`.
-- If asked to "continue," the most natural next step per the user's own priorities so far has been: **initialize git, then actually cut a tagged release** (unlocks goreleaser + Homebrew/npm publishing, which were built but never executed end-to-end). Ask the user to confirm before pushing anything to a real GitHub remote — that's a "visible to others / hard to reverse" action per this project's own operating norms observed throughout this session (AWS provisioning, DNS changes, and similar were all confirmed with the user before executing).
+- `cd "c:\Users\tehma\Desktop\Live URL Project"`, run `git log --oneline` and `git status` — there **is** a local repo now (two commits: distribution scaffolding, then self-serve signup), but still **no remote and no tag**. Don't assume anything has been pushed anywhere.
+- Confirm production is still healthy: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192 "sudo systemctl status liveurld"` and/or just visit `https://tideover.site/dashboard`. Remember production is running the **pre-signup** binary (§7a) — the signup/login tabs won't appear there until it's redeployed.
+- If asked to "continue," the natural next steps, per the user's own priorities so far, are: (1) deploy the signup work to `tideover.site` (§7a's last bullet has the how), and (2) create a GitHub remote and cut a first tagged release (unlocks goreleaser + Homebrew/npm publishing, which were built but never executed end-to-end). Ask the user to confirm before pushing anything to a real GitHub remote or redeploying production — those are "visible to others / hard to reverse" actions per this project's own operating norms observed throughout this session (AWS provisioning, DNS changes, and similar were all confirmed with the user before executing).
