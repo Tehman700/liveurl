@@ -40,8 +40,8 @@ type Router struct {
 	Dashboard    http.Handler
 	DashboardAPI http.Handler
 
-	tunnelLimiter    *ipLimiter
-	dashboardLimiter *ipLimiter
+	tunnelLimiter    *IPLimiter
+	dashboardLimiter *IPLimiter
 }
 
 // RouterConfig configures NewRouter. Rate-limit fields left at zero fall
@@ -96,8 +96,8 @@ func NewRouter(cfg RouterConfig) *Router {
 		Offline:          cfg.Offline,
 		Dashboard:        cfg.Dashboard,
 		DashboardAPI:     cfg.DashboardAPI,
-		tunnelLimiter:    newIPLimiter(tunnelRPS, tunnelBurst, rateLimiterIdleTTL),
-		dashboardLimiter: newIPLimiter(dashboardRPS, dashboardBurst, rateLimiterIdleTTL),
+		tunnelLimiter:    NewIPLimiter(tunnelRPS, tunnelBurst, rateLimiterIdleTTL),
+		dashboardLimiter: NewIPLimiter(dashboardRPS, dashboardBurst, rateLimiterIdleTTL),
 	}
 }
 

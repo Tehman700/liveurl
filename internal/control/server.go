@@ -9,7 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -21,15 +23,35 @@ import (
 
 const replayTimeout = 15 * time.Second
 
+// authRateIdleTTL controls how long an idle client's signup/login attempt
+// counter is kept before being evicted — mirrors internal/edge's own
+// rate-limiter idle window; not shared directly since that constant is
+// unexported and this is the only other caller of edge.NewIPLimiter.
+const authRateIdleTTL = 5 * time.Minute
+
 type Server struct {
 	Store    *store.Store
 	Presence *store.Presence
 	Registry *edge.Registry
 	mux      *http.ServeMux
+
+	// authLimiter throttles /api/signup and /api/login by client IP. These
+	// are the only unauthenticated, password-checking endpoints on the
+	// control API, so they get a much tighter budget than the
+	// already-authenticated routes to make password guessing impractical.
+	authLimiter *edge.IPLimiter
 }
 
 func NewServer(st *store.Store, presence *store.Presence, registry *edge.Registry) *Server {
-	s := &Server{Store: st, Presence: presence, Registry: registry, mux: http.NewServeMux()}
+	s := &Server{
+		Store:       st,
+		Presence:    presence,
+		Registry:    registry,
+		mux:         http.NewServeMux(),
+		authLimiter: edge.NewIPLimiter(5.0/60, 5, authRateIdleTTL), // ~5 attempts/minute, burst 5
+	}
+	s.mux.HandleFunc("POST /api/signup", s.rateLimitAuth(s.signUp))
+	s.mux.HandleFunc("POST /api/login", s.rateLimitAuth(s.logIn))
 	s.mux.HandleFunc("GET /api/tunnels", s.withAuth(s.listTunnels))
 	s.mux.HandleFunc("GET /api/events", s.withAuth(s.listEvents))
 	s.mux.HandleFunc("DELETE /api/events", s.withAuth(s.clearEvents))
@@ -58,6 +80,105 @@ func (s *Server) withAuth(next func(w http.ResponseWriter, r *http.Request, user
 		}
 		next(w, r, user)
 	}
+}
+
+// rateLimitAuth guards the unauthenticated signup/login endpoints, keyed on
+// client IP since there's no token yet to key on.
+func (s *Server) rateLimitAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !s.authLimiter.Allow(clientIP(r)) {
+			w.Header().Set("Retry-After", "60")
+			writeErr(w, http.StatusTooManyRequests, "too many attempts; try again in a minute")
+			return
+		}
+		next(w, r)
+	}
+}
+
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
+
+var emailRE = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
+
+const minPasswordLen = 8
+
+type credentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func decodeCredentials(r *http.Request) (email, password string, err error) {
+	var c credentials
+	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
+		return "", "", errors.New("invalid JSON body")
+	}
+	email = strings.ToLower(strings.TrimSpace(c.Email))
+	if !emailRE.MatchString(email) {
+		return "", "", errors.New("invalid email address")
+	}
+	if len(c.Password) < minPasswordLen {
+		return "", "", fmt.Errorf("password must be at least %d characters", minPasswordLen)
+	}
+	return email, c.Password, nil
+}
+
+// signUp is the self-serve equivalent of `liveurld seed`: creates an
+// account and mints its first auth token in one call, handing back exactly
+// what a new user needs to run `liveurl login <token>`. There is no email
+// verification step — consistent with the rest of this deployment, which
+// has no outbound email sending at all yet.
+func (s *Server) signUp(w http.ResponseWriter, r *http.Request) {
+	email, password, err := decodeCredentials(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	user, token, err := s.Store.SignUp(r.Context(), email, password)
+	if errors.Is(err, store.ErrEmailTaken) {
+		writeErr(w, http.StatusConflict, "an account with that email already exists")
+		return
+	}
+	if err != nil {
+		log.Printf("signup error: %v", err)
+		writeErr(w, http.StatusInternalServerError, "could not create account")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"email": user.Email, "token": token})
+}
+
+// logIn authenticates by password and mints a fresh auth token. It cannot
+// return a previously-issued token — only its SHA-256 hash is ever stored,
+// by design, the same way `liveurld seed`'s tokens work — so logging in a
+// second time (e.g. a new browser) hands back a new, additional valid
+// token rather than the original one.
+func (s *Server) logIn(w http.ResponseWriter, r *http.Request) {
+	email, password, err := decodeCredentials(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	user, err := s.Store.VerifyPassword(r.Context(), email, password)
+	if errors.Is(err, store.ErrInvalidCredentials) {
+		writeErr(w, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+	if err != nil {
+		log.Printf("login error: %v", err)
+		writeErr(w, http.StatusInternalServerError, "could not log in")
+		return
+	}
+	token, err := s.Store.NewToken(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("login token mint error: %v", err)
+		writeErr(w, http.StatusInternalServerError, "could not create token")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"email": user.Email, "token": token})
 }
 
 // resolveOwnedTunnel looks up the tunnel named by the "tunnel" query param

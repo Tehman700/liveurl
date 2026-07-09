@@ -6,7 +6,7 @@ import (
 )
 
 func TestIPLimiterAllowsUpToBurstThenBlocks(t *testing.T) {
-	l := newIPLimiter(1, 3, time.Minute)
+	l := NewIPLimiter(1, 3, time.Minute)
 	for i := 0; i < 3; i++ {
 		if !l.Allow("1.2.3.4") {
 			t.Fatalf("expected request %d to be allowed within burst", i)
@@ -23,7 +23,7 @@ func TestIPLimiterKeysAreIndependent(t *testing.T) {
 	// customers. If two different tenants' traffic shared one bucket keyed
 	// on IP alone, one tenant's volume would throttle another's webhooks.
 	// Keying on "IP|subdomain" instead must keep them fully independent.
-	l := newIPLimiter(1, 2, time.Minute)
+	l := NewIPLimiter(1, 2, time.Minute)
 	const sharedIP = "203.0.113.9" // simulates a webhook provider's shared egress IP
 
 	keyA := sharedIP + "|tenant-a"
@@ -47,7 +47,7 @@ func TestIPLimiterKeysAreIndependent(t *testing.T) {
 }
 
 func TestIPLimiterRefillsOverTime(t *testing.T) {
-	l := newIPLimiter(1000, 1, time.Minute) // fast refill so the test doesn't sleep long
+	l := NewIPLimiter(1000, 1, time.Minute) // fast refill so the test doesn't sleep long
 	if !l.Allow("1.2.3.4") {
 		t.Fatal("expected first request to be allowed")
 	}
@@ -61,7 +61,7 @@ func TestIPLimiterRefillsOverTime(t *testing.T) {
 }
 
 func TestIPLimiterEvictsIdleEntries(t *testing.T) {
-	l := newIPLimiter(1, 1, 10*time.Millisecond)
+	l := NewIPLimiter(1, 1, 10*time.Millisecond)
 	l.Allow("1.2.3.4")
 	if len(l.entries) != 1 {
 		t.Fatalf("expected 1 tracked entry, got %d", len(l.entries))

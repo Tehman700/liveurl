@@ -120,9 +120,42 @@ input:focus {
   margin: var(--space-section) auto 0;
   text-align: center;
 }
-#login-view .display { font-size: 40px; margin-bottom: var(--space-sm); }
-#login-view p.sub { color: var(--mute); margin-bottom: var(--space-xl); }
-#login-error { color: var(--sale); margin-top: var(--space-md); font-size: 14px; min-height: 1.2em; }
+#login-view .display { font-size: 40px; margin-bottom: var(--space-lg); }
+#login-view p.sub { color: var(--mute); margin-bottom: var(--space-xl); text-align: left; }
+
+.auth-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  background: var(--soft-cloud);
+  border-radius: var(--radius-full);
+  padding: var(--space-xxs);
+  margin-bottom: var(--space-xl);
+}
+.auth-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--mute);
+  border-radius: var(--radius-full);
+  padding: var(--space-sm) var(--space-md);
+}
+.auth-tab.active { background: var(--canvas); color: var(--ink); }
+
+.auth-error, #login-error { color: var(--sale); margin-top: var(--space-md); font-size: 14px; min-height: 1.2em; text-align: left; }
+
+.token-box {
+  background: var(--soft-cloud);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  word-break: break-all;
+  text-align: left;
+  font-size: 14px;
+}
 
 .section-title {
   font-size: 14px;

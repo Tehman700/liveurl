@@ -7,11 +7,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// ipLimiter hands out a token-bucket limiter per key (an IP address, or an
+// IPLimiter hands out a token-bucket limiter per key (an IP address, or an
 // "IP|subdomain" pair — the caller decides what a key means). Idle entries
 // are evicted lazily on Allow calls rather than via a background goroutine,
 // so the type needs no explicit shutdown.
-type ipLimiter struct {
+type IPLimiter struct {
 	mu        sync.Mutex
 	rps       rate.Limit
 	burst     int
@@ -25,11 +25,11 @@ type limiterEntry struct {
 	lastSeen time.Time
 }
 
-// newIPLimiter creates a limiter allowing rps requests/sec (with the given
+// NewIPLimiter creates a limiter allowing rps requests/sec (with the given
 // burst) per key. idleTTL controls how long an unused key's state is kept
 // before being evicted to bound memory.
-func newIPLimiter(rps float64, burst int, idleTTL time.Duration) *ipLimiter {
-	return &ipLimiter{
+func NewIPLimiter(rps float64, burst int, idleTTL time.Duration) *IPLimiter {
+	return &IPLimiter{
 		rps:     rate.Limit(rps),
 		burst:   burst,
 		idleTTL: idleTTL,
@@ -38,10 +38,10 @@ func newIPLimiter(rps float64, burst int, idleTTL time.Duration) *ipLimiter {
 }
 
 // Allow reports whether a request for key is within its rate limit right
-// now, consuming a token if so. A nil *ipLimiter always allows — this lets
+// now, consuming a token if so. A nil *IPLimiter always allows — this lets
 // Router/TunnelServer values built without going through their constructor
 // (e.g. in tests) degrade to "no rate limiting" instead of panicking.
-func (l *ipLimiter) Allow(key string) bool {
+func (l *IPLimiter) Allow(key string) bool {
 	if l == nil {
 		return true
 	}
@@ -63,7 +63,7 @@ func (l *ipLimiter) Allow(key string) bool {
 // sweepLocked evicts entries idle for longer than idleTTL. Called with mu
 // already held; throttled to run at most once per idleTTL so Allow stays
 // cheap on the common path.
-func (l *ipLimiter) sweepLocked(now time.Time) {
+func (l *IPLimiter) sweepLocked(now time.Time) {
 	if now.Sub(l.lastSweep) < l.idleTTL {
 		return
 	}

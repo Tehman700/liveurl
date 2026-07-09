@@ -35,7 +35,7 @@ type TunnelServer struct {
 	Registry   *Registry
 	OnConnect  func(sess *Session) // e.g. trigger webhook queue drain
 
-	handshakeLimiter *ipLimiter
+	handshakeLimiter *IPLimiter
 }
 
 // TunnelServerConfig configures NewTunnelServer. HandshakeRatePerMinute
@@ -72,7 +72,7 @@ func NewTunnelServer(cfg TunnelServerConfig) *TunnelServer {
 		Presence:         cfg.Presence,
 		Registry:         cfg.Registry,
 		OnConnect:        cfg.OnConnect,
-		handshakeLimiter: newIPLimiter(perMinute/60, 3, rateLimiterIdleTTL),
+		handshakeLimiter: NewIPLimiter(perMinute/60, 3, rateLimiterIdleTTL),
 	}
 }
 

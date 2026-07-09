@@ -14,9 +14,25 @@ const loginView = document.getElementById('login-view');
 const appView = document.getElementById('app-view');
 const logoutBtn = document.getElementById('logout-btn');
 const tokenInput = document.getElementById('token-input');
-const connectBtn = document.getElementById('connect-btn');
 const loginError = document.getElementById('login-error');
 const tunnelsList = document.getElementById('tunnels-list');
+
+const tabSignup = document.getElementById('tab-signup');
+const tabLogin = document.getElementById('tab-login');
+const tabToken = document.getElementById('tab-token');
+const signupPanel = document.getElementById('signup-panel');
+const loginPanel = document.getElementById('login-panel');
+const tokenPanel = document.getElementById('token-panel');
+const signupEmail = document.getElementById('signup-email');
+const signupPassword = document.getElementById('signup-password');
+const signupError = document.getElementById('signup-error');
+const loginEmail = document.getElementById('login-email');
+const loginPassword = document.getElementById('login-password');
+const loginPanelError = document.getElementById('login-panel-error');
+const tokenReveal = document.getElementById('token-reveal');
+const tokenRevealValue = document.getElementById('token-reveal-value');
+const tokenCopyBtn = document.getElementById('token-copy-btn');
+const tokenContinueBtn = document.getElementById('token-continue-btn');
 const detailEmpty = document.getElementById('detail-empty');
 const detailView = document.getElementById('detail-view');
 const detailTitle = document.getElementById('detail-title');
@@ -46,6 +62,26 @@ async function api(path, opts) {
     throw new Error(msg);
   }
   return body;
+}
+
+// apiPublic hits the unauthenticated /api/signup and /api/login endpoints —
+// no Bearer header, since there's no token yet.
+async function apiPublic(path, body) {
+  const resp = await fetch(API_BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await resp.text();
+  let parsed = null;
+  if (text) {
+    try { parsed = JSON.parse(text); } catch (e) { parsed = null; }
+  }
+  if (!resp.ok) {
+    const msg = (parsed && parsed.error) || ('request failed with status ' + resp.status);
+    throw new Error(msg);
+  }
+  return parsed;
 }
 
 function el(tag, opts) {
@@ -102,6 +138,81 @@ function showLogin(errMsg) {
     pollHandle = null;
   }
 }
+
+const authTabs = { signup: [tabSignup, signupPanel], login: [tabLogin, loginPanel], token: [tabToken, tokenPanel] };
+
+function showAuthTab(name) {
+  tokenReveal.classList.add('hidden');
+  for (const key in authTabs) {
+    const [tabBtn, panel] = authTabs[key];
+    tabBtn.classList.toggle('active', key === name);
+    panel.classList.toggle('hidden', key !== name);
+  }
+}
+
+tabSignup.addEventListener('click', () => showAuthTab('signup'));
+tabLogin.addEventListener('click', () => showAuthTab('login'));
+tabToken.addEventListener('click', () => showAuthTab('token'));
+
+// revealToken shows a freshly-minted plaintext token once (only auth_tokens'
+// hash is ever persisted server-side, so this is the only chance to see
+// it) and stashes it so "Continue to dashboard" can log straight in.
+let pendingToken = null;
+function revealToken(value) {
+  pendingToken = value;
+  tokenRevealValue.textContent = value;
+  signupPanel.classList.add('hidden');
+  loginPanel.classList.add('hidden');
+  tokenPanel.classList.add('hidden');
+  tokenReveal.classList.remove('hidden');
+}
+
+tokenCopyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(pendingToken || '');
+    tokenCopyBtn.textContent = 'Copied';
+    setTimeout(() => { tokenCopyBtn.textContent = 'Copy token'; }, 1500);
+  } catch (err) {
+    // clipboard API unavailable (e.g. insecure context) — the token is
+    // still selectable as plain text in the box above.
+  }
+});
+
+tokenContinueBtn.addEventListener('click', () => {
+  if (!pendingToken) return;
+  token = pendingToken;
+  pendingToken = null;
+  localStorage.setItem(TOKEN_KEY, token);
+  start();
+});
+
+signupPanel.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  signupError.textContent = '';
+  const email = signupEmail.value.trim();
+  const password = signupPassword.value;
+  if (!email || !password) return;
+  try {
+    const result = await apiPublic('/signup', { email, password });
+    revealToken(result.token);
+  } catch (err) {
+    signupError.textContent = err.message;
+  }
+});
+
+loginPanel.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  loginPanelError.textContent = '';
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) return;
+  try {
+    const result = await apiPublic('/login', { email, password });
+    revealToken(result.token);
+  } catch (err) {
+    loginPanelError.textContent = err.message;
+  }
+});
 
 async function loadTunnels() {
   let tunnels;
@@ -204,7 +315,8 @@ clearEventsBtn.addEventListener('click', async () => {
   loadDetail();
 });
 
-connectBtn.addEventListener('click', async () => {
+tokenPanel.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
   const val = tokenInput.value.trim();
   if (!val) return;
   token = val;
@@ -225,6 +337,7 @@ logoutBtn.addEventListener('click', () => {
   token = null;
   currentTunnel = null;
   showLogin();
+  showAuthTab('signup');
 });
 
 function start() {

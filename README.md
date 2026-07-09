@@ -93,8 +93,12 @@ side yourself (see [Self-hosting your own server](#self-hosting-your-own-server)
 
 ### Using an existing liveurl server
 
-Someone running a `liveurld` server (a teammate, or yourself if you've deployed one — see below)
-gives you an auth token via `liveurld seed`. Then, on your own machine:
+Sign up for an account at the server's dashboard (`https://yourdomain.com/dashboard` — e.g.
+[tideover.site/dashboard](https://tideover.site/dashboard)) to get an auth token, the same way you'd
+grab an authtoken from ngrok's dashboard. No email verification step exists yet, so the token is
+shown once immediately after signup — copy it before leaving the page. Alternatively, whoever runs
+the `liveurld` server can hand you a token via `liveurld seed` (the original operator-provisioned
+path, still supported). Then, on your own machine:
 
 ```powershell
 # one-time
@@ -149,6 +153,13 @@ go build -o bin/demoapp.exe  ./examples/demoapp         # a tiny app to test aga
 ./bin/liveurld.exe serve       # tunnel listener :4443, public HTTP :8080, control API :8081
 ./bin/liveurld.exe seed        # creates a user, prints an auth token
 ```
+
+Users can also self-serve an account (and its first token) from the dashboard at
+`http://<public host>/dashboard` — no operator step required. Under the hood that's
+`POST /api/signup {"email","password"}` on the dashboard's API (`/dashboard/api/signup`, unauthenticated,
+rate-limited per IP); `POST /api/login` re-authenticates by password and mints a fresh token, since only
+a token's SHA-256 hash is ever stored server-side and a lost token can't be redisplayed. `liveurld seed`
+remains the operator-side escape hatch and is unaffected.
 
 By default `liveurld` expects Postgres on `127.0.0.1:5433` and Redis on `127.0.0.1:6380` (see
 `internal/config/config.go`) — deliberately non-default ports to avoid colliding with any
@@ -224,12 +235,11 @@ Postgres isn't reachable.
 
 Being upfront about what this is *not*, today:
 
-- **No self-serve signup.** Accounts are created by whoever runs `liveurld seed` — there's no
-  website, no "create account" button. Fine for a self-hosted team tool, not yet a product someone
-  signs up for.
+- **Signup has no email verification.** `/api/signup` creates the account and hands back a token
+  immediately — there's no outbound email sending anywhere in this deployment yet, so there's no
+  confirmation link and no password-reset flow if you lose both your password and your token.
 - **No packaged binary distribution.** `go build` from source is the only install path — no
   `brew`/`npm`/downloadable release yet.
-- **CLI only.** Everything above is terminal-driven; no web dashboard.
 - **Single edge node, single region.** No multi-region routing yet.
 - Snapshot caching is passive-only (only pages you actually visited while online get cached) — no
   active crawler yet.

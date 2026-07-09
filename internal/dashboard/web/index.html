@@ -16,13 +16,59 @@
 <div class="wrap">
 
   <section id="login-view">
-    <h1 class="display">Connect</h1>
-    <p class="sub">Paste an auth token from <code>liveurld seed</code> to view your tunnels.</p>
-    <input id="token-input" type="password" placeholder="lu_..." autocomplete="off">
-    <div style="margin-top:12px">
-      <button id="connect-btn" class="btn btn-primary" style="width:100%">Connect</button>
+    <h1 class="display">liveurl</h1>
+
+    <div class="auth-tabs">
+      <button id="tab-signup" class="auth-tab active" type="button">Sign up</button>
+      <button id="tab-login" class="auth-tab" type="button">Log in</button>
+      <button id="tab-token" class="auth-tab" type="button">Have a token?</button>
     </div>
-    <div id="login-error"></div>
+
+    <form id="signup-panel" class="auth-panel">
+      <p class="sub">Create an account and get an auth token for the <code>liveurl</code> CLI.</p>
+      <input id="signup-email" type="text" placeholder="you@example.com" autocomplete="email">
+      <div style="margin-top:8px">
+        <input id="signup-password" type="password" placeholder="Password (min 8 characters)" autocomplete="new-password">
+      </div>
+      <div style="margin-top:12px">
+        <button id="signup-btn" class="btn btn-primary" style="width:100%" type="submit">Sign up</button>
+      </div>
+      <div id="signup-error" class="auth-error"></div>
+    </form>
+
+    <form id="login-panel" class="auth-panel hidden">
+      <p class="sub">Log in to mint a fresh auth token.</p>
+      <input id="login-email" type="text" placeholder="you@example.com" autocomplete="email">
+      <div style="margin-top:8px">
+        <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <div style="margin-top:12px">
+        <button id="login-btn" class="btn btn-primary" style="width:100%" type="submit">Log in</button>
+      </div>
+      <div id="login-panel-error" class="auth-error"></div>
+    </form>
+
+    <form id="token-panel" class="auth-panel hidden">
+      <p class="sub">Paste an existing auth token to view your tunnels.</p>
+      <input id="token-input" type="password" placeholder="lu_..." autocomplete="off">
+      <div style="margin-top:12px">
+        <button id="connect-btn" class="btn btn-primary" style="width:100%" type="submit">Connect</button>
+      </div>
+      <div id="login-error" class="auth-error"></div>
+    </form>
+
+    <div id="token-reveal" class="hidden">
+      <p class="sub">Account ready. Copy this token now — it won't be shown again. Run it on the machine hosting your app:</p>
+      <div class="token-box">
+        <code id="token-reveal-value"></code>
+      </div>
+      <div style="margin-top:8px">
+        <button id="token-copy-btn" class="btn btn-secondary" style="width:100%" type="button">Copy token</button>
+      </div>
+      <div style="margin-top:8px">
+        <button id="token-continue-btn" class="btn btn-primary" style="width:100%" type="button">Continue to dashboard</button>
+      </div>
+    </div>
   </section>
 
   <section id="app-view" class="hidden">
