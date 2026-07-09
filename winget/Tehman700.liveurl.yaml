@@ -1,0 +1,14 @@
+# winget version manifest — see https://learn.microsoft.com/en-us/windows/package-manager/package/manifest
+#
+# This is a TEMPLATE, not wired into CI. Unlike Homebrew/npm, winget
+# realistically needs a manual PR to microsoft/winget-pkgs (or the
+# `wingetcreate` CLI) rather than a one-shot automated publish — see the
+# README's distribution section. Fill in the real version after cutting a
+# release, then submit these three files as
+# manifests/t/Tehman700/liveurl/<version>/ in a PR to
+# https://github.com/microsoft/winget-pkgs.
+PackageIdentifier: Tehman700.liveurl
+PackageVersion: 0.1.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.10.0

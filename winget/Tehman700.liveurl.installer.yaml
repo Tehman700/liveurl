@@ -1,0 +1,25 @@
+# winget installer manifest — see https://learn.microsoft.com/en-us/windows/package-manager/package/manifest
+# TEMPLATE — see Tehman700.liveurl.yaml for context.
+#
+# After cutting a real release, replace the URLs below with the actual
+# GitHub release asset URLs and fill in each InstallerSha256 from
+# checksums.txt (goreleaser writes both a .zip and a .tar.gz per platform;
+# winget's "zip" installer type needs the .zip).
+PackageIdentifier: Tehman700.liveurl
+PackageVersion: 0.1.0
+InstallerType: zip
+NestedInstallerType: portable
+NestedInstallerFiles:
+  - RelativeFilePath: liveurl.exe
+    PortableCommandAlias: liveurl
+  - RelativeFilePath: liveurld.exe
+    PortableCommandAlias: liveurld
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/Tehman700/liveurl/releases/download/v0.1.0/liveurl_0.1.0_windows_amd64.zip
+    InstallerSha256: "REPLACE_WITH_SHA256_FROM_CHECKSUMS.TXT"
+  - Architecture: arm64
+    InstallerUrl: https://github.com/Tehman700/liveurl/releases/download/v0.1.0/liveurl_0.1.0_windows_arm64.zip
+    InstallerSha256: "REPLACE_WITH_SHA256_FROM_CHECKSUMS.TXT"
+ManifestType: installer
+ManifestVersion: 1.10.0

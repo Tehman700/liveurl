@@ -3,3 +3,5 @@
 dist/
 .claude/
 *.log
+node_modules/
+npm-wrapper/vendor/

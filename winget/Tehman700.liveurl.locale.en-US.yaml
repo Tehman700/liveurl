@@ -1,0 +1,25 @@
+# winget locale manifest — see https://learn.microsoft.com/en-us/windows/package-manager/package/manifest
+# TEMPLATE — see Tehman700.liveurl.yaml for context.
+PackageIdentifier: Tehman700.liveurl
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: Tehman700
+PackageName: liveurl
+License: MIT
+LicenseUrl: https://github.com/Tehman700/liveurl/blob/main/LICENSE
+PackageUrl: https://github.com/Tehman700/liveurl
+ShortDescription: The tunnel URL that survives your laptop going offline.
+Description: >-
+  liveurl exposes a local HTTP server through a stable public URL. Unlike a
+  plain tunnel, the URL stays useful when your machine goes offline:
+  browser traffic falls back to a cached snapshot of pages visited while
+  online, and webhook-shaped requests (Stripe, GitHub, ...) are buffered
+  and replayed, in order, the moment you reconnect.
+Tags:
+  - tunnel
+  - webhook
+  - localhost
+  - ngrok-alternative
+  - developer-tools
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0

@@ -1,0 +1,89 @@
+version: 2
+
+project_name: liveurl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: liveurl
+    main: ./cmd/liveurl
+    binary: liveurl
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+  - id: liveurld
+    main: ./cmd/liveurld
+    binary: liveurld
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+# Both binaries ship together in one archive per platform: liveurl (the
+# client most people want) and liveurld (the server, for self-hosters) —
+# packaging them separately would double the release matrix for no real
+# benefit, since goreleaser builds both either way. Uniformly tar.gz, even
+# for Windows: it keeps the npm installer (npm-wrapper/install.js) to a
+# single extraction code path instead of needing both tar.gz and zip
+# support, at no real cost (tar.gz is just a container format, independent
+# of which OS the binary inside targets).
+archives:
+  - id: liveurl-archive
+    ids: [liveurl, liveurld]
+    name_template: >-
+      liveurl_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [tar.gz]
+
+  # winget's "zip" installer type needs an actual .zip, not .tar.gz. This
+  # produces the same content in zip form for every platform (a few unused
+  # .zip assets for linux/darwin in the release is harmless) so the winget
+  # manifest below has a real asset to point at.
+  - id: liveurl-archive-zip
+    ids: [liveurl, liveurld]
+    name_template: >-
+      liveurl_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+# Requires a separate Tehman700/homebrew-liveurl repo (create it once) and
+# a HOMEBREW_TAP_GITHUB_TOKEN secret on this repo's Actions settings with
+# write access to it — see README's distribution section.
+homebrew_casks:
+  - name: liveurl
+    ids: [liveurl-archive]
+    binaries: [liveurl, liveurld]
+    repository:
+      owner: Tehman700
+      name: homebrew-liveurl
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: "https://github.com/Tehman700/liveurl"
+    description: "The tunnel URL that survives your laptop going offline."
+
+release:
+  github:
+    owner: Tehman700
+    name: liveurl

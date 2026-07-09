@@ -1,0 +1,26 @@
+{
+  "name": "liveurl",
+  "version": "0.0.0",
+  "description": "The tunnel URL that survives your laptop going offline.",
+  "license": "MIT",
+  "homepage": "https://github.com/Tehman700/liveurl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tehman700/liveurl.git"
+  },
+  "bin": {
+    "liveurl": "bin/liveurl.js"
+  },
+  "files": [
+    "bin",
+    "install.js"
+  ],
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "os": ["linux", "darwin", "win32"],
+  "cpu": ["x64", "arm64"],
+  "dependencies": {
+    "tar": "^7.4.3"
+  }
+}
