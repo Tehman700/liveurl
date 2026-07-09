@@ -1,0 +1,5 @@
+/bin/
+*.exe
+dist/
+.claude/
+*.log

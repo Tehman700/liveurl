@@ -1,0 +1,78 @@
+liveurl third-party notices
+============================
+
+liveurl (this project) is licensed under the MIT License — see LICENSE.
+
+The compiled liveurl/liveurld binaries also include the following
+third-party Go modules. This list reflects the actual dependency graph
+compiled into cmd/liveurl and cmd/liveurld (via `go list -deps`), not
+every module in go.sum (some go.sum entries are only test/tooling
+dependencies of those modules and are never compiled into the binaries).
+
+Regenerate after dependency changes with, e.g.:
+  go list -deps ./cmd/liveurl ./cmd/liveurld | grep '\.' | grep -v '^github.com/Tehman700/liveurl' | sort -u
+
+--------------------------------------------------------------------------
+
+github.com/cespare/xxhash/v2
+  MIT License
+  https://github.com/cespare/xxhash
+
+github.com/hashicorp/yamux
+  Mozilla Public License 2.0 (MPL-2.0)
+  https://github.com/hashicorp/yamux
+  Used unmodified as a library dependency; MPL-2.0's file-level copyleft
+  applies to yamux's own source files, not to liveurl's code that merely
+  imports it.
+
+github.com/inconshreveable/mousetrap
+  Apache License 2.0
+  https://github.com/inconshreveable/mousetrap
+
+github.com/jackc/pgpassfile
+  MIT License
+  https://github.com/jackc/pgpassfile
+
+github.com/jackc/pgservicefile
+  MIT License
+  https://github.com/jackc/pgservicefile
+
+github.com/jackc/pgx/v5 (including its pgconn, pgproto3, pgtype, pgxpool
+subpackages)
+  MIT License
+  https://github.com/jackc/pgx
+
+github.com/jackc/puddle/v2
+  MIT License
+  https://github.com/jackc/puddle
+
+github.com/redis/go-redis/v9 (including its auth, internal, maintnotifications,
+push subpackages)
+  BSD 2-Clause License
+  https://github.com/redis/go-redis
+
+github.com/spf13/cobra
+  Apache License 2.0
+  https://github.com/spf13/cobra
+
+github.com/spf13/pflag
+  BSD 3-Clause License
+  https://github.com/spf13/pflag
+
+go.uber.org/atomic
+  MIT License
+  https://github.com/uber-go/atomic
+
+golang.org/x/sync
+golang.org/x/text
+golang.org/x/time
+  BSD 3-Clause License
+  https://cs.opensource.google/go/x/sync
+  https://cs.opensource.google/go/x/text
+  https://cs.opensource.google/go/x/time
+
+--------------------------------------------------------------------------
+
+Full license texts are available in each module's own repository at the
+paths above. This NOTICE provides attribution per each license's terms;
+it is not itself a license grant.

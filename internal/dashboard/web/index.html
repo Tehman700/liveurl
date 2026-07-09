@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>liveurl dashboard</title>
+<link rel="stylesheet" href="/dashboard/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="display">liveurl</span>
+  <button id="logout-btn" class="btn btn-secondary btn-sm hidden">Log out</button>
+</header>
+
+<div class="wrap">
+
+  <section id="login-view">
+    <h1 class="display">Connect</h1>
+    <p class="sub">Paste an auth token from <code>liveurld seed</code> to view your tunnels.</p>
+    <input id="token-input" type="password" placeholder="lu_..." autocomplete="off">
+    <div style="margin-top:12px">
+      <button id="connect-btn" class="btn btn-primary" style="width:100%">Connect</button>
+    </div>
+    <div id="login-error"></div>
+  </section>
+
+  <section id="app-view" class="hidden">
+    <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap">
+
+      <div style="flex:1; min-width:220px">
+        <h2 class="section-title">Tunnels</h2>
+        <div id="tunnels-list" class="card"></div>
+      </div>
+
+      <div style="flex:2; min-width:320px">
+        <div id="detail-empty" class="empty">Select a tunnel to see its status, snapshot cache, and buffered webhook events.</div>
+
+        <div id="detail-view" class="hidden">
+          <h2 class="section-title" id="detail-title">Tunnel</h2>
+
+          <div class="stat-row">
+            <div class="stat">
+              <div class="num" id="stat-state">—</div>
+              <div class="label">State</div>
+            </div>
+            <div class="stat">
+              <div class="num" id="stat-queued">—</div>
+              <div class="label">Queued events</div>
+            </div>
+            <div class="stat">
+              <div class="num" id="stat-pages">—</div>
+              <div class="label">Snapshot pages</div>
+            </div>
+            <div class="stat">
+              <div class="num" id="stat-bytes">—</div>
+              <div class="label">Snapshot bytes</div>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <h2 class="section-title" style="margin:0">Webhook events</h2>
+            <button id="clear-events-btn" class="btn btn-danger btn-sm">Clear all</button>
+          </div>
+
+          <table class="events">
+            <thead>
+              <tr>
+                <th>ID</th><th>Method</th><th>Path</th><th>State</th><th>Attempts</th><th>Received</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="events-tbody"></tbody>
+          </table>
+          <div id="events-empty" class="empty hidden">No events yet.</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<script src="/dashboard/app.js"></script>
+</body>
+</html>
