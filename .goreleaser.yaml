@@ -71,15 +71,19 @@ changelog:
 
 # Requires a separate Tehman700/homebrew-liveurl repo (create it once) and
 # a HOMEBREW_TAP_GITHUB_TOKEN secret on this repo's Actions settings with
-# write access to it — see README's distribution section.
+# write access to it — see README's distribution section. Until that
+# one-time setup is done, skip_upload keeps this pipe from failing the
+# whole release: the cask file still gets built into dist/, it's just not
+# pushed anywhere, so early tags (before the tap exists) release cleanly.
 homebrew_casks:
   - name: liveurl
     ids: [liveurl-archive]
     binaries: [liveurl, liveurld]
+    skip_upload: "{{ if index .Env \"HOMEBREW_TAP_GITHUB_TOKEN\" }}false{{ else }}true{{ end }}"
     repository:
       owner: Tehman700
       name: homebrew-liveurl
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ index .Env \"HOMEBREW_TAP_GITHUB_TOKEN\" }}"
     homepage: "https://github.com/Tehman700/liveurl"
     description: "The tunnel URL that survives your laptop going offline."
 

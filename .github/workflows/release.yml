@@ -53,7 +53,16 @@ jobs:
 
       - name: Publish
         working-directory: npm-wrapper
-        run: npm publish --access public
+        # The secrets context isn't usable in a job-level `if:`, so the
+        # skip check lives here instead: until NPM_TOKEN is set up (see
+        # README's distribution section), this logs and exits 0 rather
+        # than failing the release for an already-known, expected gap.
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN secret not set — skipping npm publish."
+            exit 0
+          fi
+          npm publish --access public
         env:
           # Create this on npmjs.com (Access Tokens, "Automation" type) and
           # add it as this repo's NPM_TOKEN secret.
