@@ -146,6 +146,7 @@ input:focus {
 .auth-tab.active { background: var(--canvas); color: var(--ink); }
 
 .auth-error, #login-error { color: var(--sale); margin-top: var(--space-md); font-size: 14px; min-height: 1.2em; text-align: left; }
+.auth-hint { color: var(--mute); margin-top: var(--space-lg); font-size: 13px; text-align: left; }
 
 .token-box {
   background: var(--soft-cloud);

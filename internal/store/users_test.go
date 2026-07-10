@@ -125,3 +125,59 @@ func TestVerifyPasswordRejectsUnknownEmail(t *testing.T) {
 		t.Fatalf("expected ErrInvalidCredentials for unknown email, got %v", err)
 	}
 }
+
+func TestResetPasswordOnSeededAccount(t *testing.T) {
+	// This is the account-recovery escape hatch's core promise: an operator
+	// can give a password to an account that only ever had a CLI-minted
+	// token (e.g. `liveurld seed`), unlike self-serve /api/signup which
+	// deliberately refuses to touch such an account.
+	st := openTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	email := testEmail(t)
+
+	if _, err := st.CreateUser(ctx, email); err != nil {
+		t.Fatalf("seed-style create user: %v", err)
+	}
+	if _, err := st.VerifyPassword(ctx, email, "new-password-123"); err != ErrInvalidCredentials {
+		t.Fatalf("expected no password set yet, got %v", err)
+	}
+
+	if _, err := st.ResetPassword(ctx, email, "new-password-123"); err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+	if _, err := st.VerifyPassword(ctx, email, "new-password-123"); err != nil {
+		t.Fatalf("expected the new password to verify, got %v", err)
+	}
+}
+
+func TestResetPasswordReplacesExistingPassword(t *testing.T) {
+	st := openTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+	email := testEmail(t)
+
+	if _, _, err := st.SignUp(ctx, email, "old-password-123"); err != nil {
+		t.Fatalf("signup: %v", err)
+	}
+	if _, err := st.ResetPassword(ctx, email, "new-password-456"); err != nil {
+		t.Fatalf("reset password: %v", err)
+	}
+
+	if _, err := st.VerifyPassword(ctx, email, "old-password-123"); err != ErrInvalidCredentials {
+		t.Fatalf("expected the old password to stop working, got %v", err)
+	}
+	if _, err := st.VerifyPassword(ctx, email, "new-password-456"); err != nil {
+		t.Fatalf("expected the new password to verify, got %v", err)
+	}
+}
+
+func TestResetPasswordRejectsUnknownEmail(t *testing.T) {
+	st := openTestStore(t)
+	defer st.Close()
+	ctx := context.Background()
+
+	if _, err := st.ResetPassword(ctx, testEmail(t), "whatever"); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for unknown email, got %v", err)
+	}
+}

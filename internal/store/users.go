@@ -145,6 +145,32 @@ func (s *Store) VerifyPassword(ctx context.Context, email, password string) (Use
 	return u, nil
 }
 
+// ResetPassword sets (or replaces) an existing account's password. Unlike
+// SignUp, it succeeds even for a `liveurld seed`-created account that has
+// no password yet: this is an operator-only escape hatch (run via
+// `liveurld reset-password` on the box, not exposed over HTTP), so the
+// anti-takeover restriction that guards the public /api/signup endpoint
+// doesn't apply — an operator with shell access to the box already has
+// unrestricted DB access anyway. Returns ErrNotFound if no account has
+// that email.
+func (s *Store) ResetPassword(ctx context.Context, email, newPassword string) (User, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return User{}, fmt.Errorf("hash password: %w", err)
+	}
+	var u User
+	err = s.pool.QueryRow(ctx,
+		`UPDATE users SET password_hash = $1 WHERE email = $2 RETURNING id, email`,
+		string(hash), email).Scan(&u.ID, &u.Email)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrNotFound
+	}
+	if err != nil {
+		return User{}, fmt.Errorf("update password: %w", err)
+	}
+	return u, nil
+}
+
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])

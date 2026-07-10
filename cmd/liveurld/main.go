@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -52,7 +54,7 @@ deploy/docker-compose.yml for a local Postgres+Redis stack.`,
 		Version: version,
 	}
 	root.SetVersionTemplate("liveurld {{.Version}} (commit " + commit + ", built " + date + ")\n")
-	root.AddCommand(serveCmd(), seedCmd())
+	root.AddCommand(serveCmd(), seedCmd(), resetPasswordCmd())
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -195,8 +197,9 @@ func seedCmd() *cobra.Command {
 		Long: `Create (or reuse, keyed by email) a user and print a fresh auth token.
 
 The printed token is what an end user passes to "liveurl login" on the
-machine hosting their app. There is currently no self-serve signup — this
-command is how an operator provisions accounts.`,
+machine hosting their app. Most accounts these days come from self-serve
+signup (POST /api/signup on the dashboard) instead — this command remains
+for operator-provisioned accounts and local dev.`,
 		Example: `  liveurld seed
   liveurld seed --email you@example.com`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -228,4 +231,71 @@ command is how an operator provisions accounts.`,
 	}
 	cmd.Flags().StringVar(&email, "email", "dev@localhost", "email to identify the dev user")
 	return cmd
+}
+
+func resetPasswordCmd() *cobra.Command {
+	var email string
+	cmd := &cobra.Command{
+		Use:   "reset-password",
+		Short: "Recover a locked-out account: set a new password and mint a fresh token",
+		Long: `Operator-only account recovery.
+
+Self-serve signup (POST /api/signup) has no email verification and no
+self-service "forgot password" flow yet, so a user who forgets their
+password has no way to recover their account on their own — and can't just
+sign up again with the same email, since /api/signup deliberately refuses
+to reuse an existing one. This command is the escape hatch: it sets a new
+random password on the account and mints a fresh auth token, exactly like
+a successful /api/login would.
+
+Run this on the box, having verified out-of-band that the requester really
+owns that email (this command does not verify identity itself), then relay
+the printed password and token back to them.`,
+		Example: `  liveurld reset-password --email you@example.com`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.LoadServer()
+			ctx := cmd.Context()
+			st, err := store.Open(ctx, cfg.PostgresDSN)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			if err := st.Migrate(ctx); err != nil {
+				return err
+			}
+			password, err := randomPassword()
+			if err != nil {
+				return err
+			}
+			user, err := st.ResetPassword(ctx, email, password)
+			if err != nil {
+				return err
+			}
+			token, err := st.NewToken(ctx, user.ID)
+			if err != nil {
+				return err
+			}
+			fmt.Println("user:", user.Email)
+			fmt.Println("new password:", password)
+			fmt.Println("new token:", token)
+			fmt.Println()
+			fmt.Println("Relay both back to the user. They can log in at /dashboard with the new")
+			fmt.Println("password, or run this right now on the machine hosting their app:")
+			fmt.Printf("  liveurl login %s\n", token)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&email, "email", "", "email of the account to recover (required)")
+	cmd.MarkFlagRequired("email")
+	return cmd
+}
+
+// randomPassword generates a recovery password strong enough that its
+// randomness carries the security, not any complexity rule.
+func randomPassword() (string, error) {
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
 }

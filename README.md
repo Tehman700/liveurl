@@ -197,6 +197,7 @@ liveurl status --tunnel X                online/offline, queue depth, snapshot s
 
 liveurld serve                           run the server
 liveurld seed [--email you@x.com]        create a user + print a token
+liveurld reset-password --email you@x.com   recover a locked-out account: new password + fresh token
 ```
 
 ## How requests are classified while offline
@@ -235,11 +236,16 @@ Postgres isn't reachable.
 
 Being upfront about what this is *not*, today:
 
-- **Signup has no email verification.** `/api/signup` creates the account and hands back a token
-  immediately — there's no outbound email sending anywhere in this deployment yet, so there's no
-  confirmation link and no password-reset flow if you lose both your password and your token.
-- **No packaged binary distribution.** `go build` from source is the only install path — no
-  `brew`/`npm`/downloadable release yet.
+- **Signup has no email verification, and password reset isn't self-service.** `/api/signup`
+  creates the account and hands back a token immediately — there's no outbound email sending
+  anywhere in this deployment yet, so there's no confirmation link and no "forgot password" flow a
+  user can trigger themselves. If you lose both your password and your token, the operator runs
+  `liveurld reset-password --email you@x.com` on the server to recover the account (after verifying
+  it's really you, out-of-band — the command itself doesn't check).
+- **No packaged binary distribution via a package manager.** Tagged releases (`git tag vX.Y.Z`) do
+  now produce real downloadable binaries on the GitHub Releases page and via `go install
+  github.com/Tehman700/liveurl/cmd/liveurl@latest` — what's still missing is `brew`/`npm`/`winget`
+  actually publishing to those ecosystems (scaffolded, needs one-time secret/account setup).
 - **Single edge node, single region.** No multi-region routing yet.
 - Snapshot caching is passive-only (only pages you actually visited while online get cached) — no
   active crawler yet.
