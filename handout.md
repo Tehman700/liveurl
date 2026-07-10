@@ -10,11 +10,11 @@ A note on secrets: this file deliberately does **not** embed live credentials (C
 
 - **Product**: `liveurl` — a localhost tunnel (ngrok-alternative) whose differentiator is *surviving the tunnel agent going offline*: webhook buffering + ordered replay, and cached page snapshots with an offline banner.
 - **Stack**: Go (agent + edge server), Postgres, Redis, vanilla-JS embedded web dashboard. Module path `github.com/Tehman700/liveurl`. MIT licensed.
-- **It is deployed for real right now**: `https://tideover.site`, on an AWS EC2 instance (`i-00cf08d9fc565b40a`, t3.small, ap-south-1/Mumbai), Elastic IP `65.2.198.192`, DNS on Cloudflare, real Let's Encrypt wildcard cert, running as a systemd service.
+- **It is deployed for real right now**: `https://tideover.site`, on an AWS EC2 instance (t3.small, ap-south-1/Mumbai — exact instance ID/IP in `ops-notes.local.md`, gitignored, not in this public repo), DNS on Cloudflare, real Let's Encrypt wildcard cert, running as a systemd service.
 - **Local dev environment** still exists independently at `*.lvh.me:8080` with its own Postgres/Redis (ports 5433/6380 to avoid clashing with the user's native Windows Postgres/Redis services on 5432/6379).
-- **There is no git repository yet.** Nothing has been committed or pushed anywhere. This is the single biggest open item.
+- **This repo is public** (`github.com/Tehman700/liveurl`, made public 2026-07-10 — see §8a) and tagged at `v0.1.0`. Production access details (Elastic IP, EC2 instance ID, security group ID) were moved out of this file into `ops-notes.local.md` — a gitignored, local-only file — before going public, specifically so this handout could stay public without handing out infra reconnaissance. Any session working from a fresh clone of the public repo won't have that file; the machine this was written on does.
 - Full local test suite passes (`go test ./...`). Full production regression suite (live proxy → offline → snapshot fallback → webhook buffer → reconnect → ordered replay) has been manually verified against the real `tideover.site` deployment multiple times.
-- SSH access to the VPS: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192` (key path is on the user's D: drive).
+- SSH access to the VPS: see `ops-notes.local.md` for the exact command (key path is on the user's D: drive).
 
 ---
 
@@ -99,8 +99,8 @@ A Node/Express test app was later built at `examples/demoapp`-adjacent for early
    - **Decision**: abandoned DuckDNS. User bought a real domain instead.
 2. **Bought `tideover.site` on Namecheap.** Considered AWS Route 53 as the DNS host (would give zero-static-key IAM-role auth for `acme.sh`) but **the user's AWS account cannot register/transfer domains** (a common free-tier/new-account restriction) — Route 53 domain registration was a dead end. Went with **Cloudflare** instead: free DNS, reliable DNS-01, a scoped API token instead of an IAM role.
 3. Cloudflare setup: added the site, switched Namecheap's nameservers to Cloudflare's (`rodney.ns.cloudflare.com`, `ulla.ns.cloudflare.com`). **Two DNS records manually fixed in Cloudflare's dashboard** (not Namecheap's — nameserver delegation disables Namecheap's own DNS editor):
-   - `A tideover.site → 65.2.198.192`, proxy status set to **DNS only** (gray cloud, not orange/"Proxied")
-   - `A * → 65.2.198.192` (the wildcard), also **DNS only**
+   - `A tideover.site → <Elastic IP, see ops-notes.local.md>`, proxy status set to **DNS only** (gray cloud, not orange/"Proxied")
+   - `A * → <same Elastic IP>` (the wildcard), also **DNS only**
    - **Why DNS-only matters**: Cloudflare's proxy only forwards a fixed list of common web ports and does not forward port 4443 (the tunnel port) at all, and would terminate TLS at their edge instead of passing through to the real cert. Getting this wrong would have silently broken the tunnel port entirely. This is a durable rule for this project: **never enable Cloudflare's orange-cloud proxy on these records.**
    - Verified via `nslookup` against both 1.1.1.1 and 8.8.8.8 directly that the wildcard genuinely resolves for arbitrary subdomains before proceeding.
 4. Cloudflare API token created (My Profile → API Tokens → "Edit zone DNS" template, scoped to just the `tideover.site` zone).
@@ -108,8 +108,8 @@ A Node/Express test app was later built at `examples/demoapp`-adjacent for early
 
 ### AWS EC2 provisioning
 - User launched via Console (AWS CLI credentials in this environment are invalid — `aws sts get-caller-identity` fails — so this had to go through the Console, not `aws ec2 run-instances`).
-- Instance: Ubuntu Server (came up as 26.04 LTS "resolute"), **t3.small** (1.9GB RAM), Elastic IP `65.2.198.192` associated.
-- Security group (`sg-068c97ed9fe84e503`, "launch-wizard-5"): SSH/22 restricted to the user's IP, HTTP/80 and HTTPS/443 open to `0.0.0.0/0`, Custom TCP/4443 open to `0.0.0.0/0` (the tunnel port). No other ports open — Postgres/Redis/control-API stay unreachable from outside by design.
+- Instance: Ubuntu Server (came up as 26.04 LTS "resolute"), **t3.small** (1.9GB RAM), an Elastic IP associated (see `ops-notes.local.md`).
+- Security group ("launch-wizard-5", ID in `ops-notes.local.md`): SSH/22 restricted to the user's IP, HTTP/80 and HTTPS/443 open to `0.0.0.0/0`, Custom TCP/4443 open to `0.0.0.0/0` (the tunnel port). No other ports open — Postgres/Redis/control-API stay unreachable from outside by design.
 - Added 1GB swap file (t3.small has no swap by default and 1.9GB RAM is tight for Postgres+Redis+liveurld).
 - Installed Docker via the official convenience script; Postgres+Redis run via the **same** `deploy/docker-compose.yml` as local dev, bound to `127.0.0.1` only (hardened this port-binding as part of the rate-limiting/dashboard work — see §7).
 - Cross-compiled `liveurld` locally (`GOOS=linux GOARCH=amd64 go build`) and `scp`'d it up — no Go toolchain needed on the tiny VPS.
@@ -122,7 +122,7 @@ A Node/Express test app was later built at `examples/demoapp`-adjacent for early
 The tunnel handshake's `PublicURL` field was **hardcoded** to the local-dev constant `lvh.me:8080` regardless of actual deployment (`proto.DefaultPublicHost`). This was purely a cosmetic/display bug (routing itself was correct — `Router.BaseHost` was right), but it meant every user, on every deployment, would see the wrong URL echoed back by the agent on connect. **Fixed**: added `PublicHost`/`PublicTLS` fields to `TunnelServer`, threaded through from `cmd/liveurld/main.go`'s config, so the handshake reply now reports the real scheme+host. Verified the agent auto-reconnected with the corrected message (`https://demo.tideover.site` instead of `http://demo.lvh.me:8080`).
 
 ### A red herring worth remembering
-During the later distribution/rate-limiting work (§7), port 4443 appeared to be unreachable again via `bash`'s `/dev/tcp` mechanism (`cat < /dev/tcp/65.2.198.192/4443` timed out repeatedly), even after re-confirming the security group rule was correct and the server was genuinely listening (`ss -tlnp` on the box showed it bound). **Turned out to be a false negative specific to Git Bash's `/dev/tcp` on this machine** — `PowerShell`'s `Test-NetConnection -ComputerName 65.2.198.192 -Port 4443` immediately returned `TcpTestSucceeded: True`. **Lesson for future debugging on this Windows machine: prefer `Test-NetConnection` (PowerShell) over `/dev/tcp` (Git Bash) for TCP reachability checks** — the latter has given at least one confirmed false timeout on this specific box/network combo.
+During the later distribution/rate-limiting work (§7), port 4443 appeared to be unreachable again via `bash`'s `/dev/tcp` mechanism (`cat < /dev/tcp/<prod IP>/4443` timed out repeatedly), even after re-confirming the security group rule was correct and the server was genuinely listening (`ss -tlnp` on the box showed it bound). **Turned out to be a false negative specific to Git Bash's `/dev/tcp` on this machine** — `PowerShell`'s `Test-NetConnection -ComputerName <prod IP> -Port 4443` immediately returned `TcpTestSucceeded: True`. **Lesson for future debugging on this Windows machine: prefer `Test-NetConnection` (PowerShell) over `/dev/tcp` (Git Bash) for TCP reachability checks** — the latter has given at least one confirmed false timeout on this specific box/network combo.
 
 Also during this period: the user's home IP rotated, breaking the SSH security-group rule temporarily (fixed by re-adding the current IP).
 
@@ -211,10 +211,10 @@ Closed §9 item 3 from the prior session: accounts previously only existed via a
 
 ## 8. Current production access reference
 
-- SSH: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192`
+- SSH: see `ops-notes.local.md` for the exact command (this file is public now, so the Elastic IP/instance ID/security group ID live there instead, gitignored).
 - Systemd service: `sudo systemctl status|restart liveurld`, logs via `sudo journalctl -u liveurld`
 - Docker services (Postgres/Redis) on the box: `docker compose -f ~/liveurl/deploy/docker-compose.yml ps`
-- Control API is loopback-only (`127.0.0.1:8081` on the box) — reach it from the dev machine via `ssh -i D:\liveurl.pem -L 18081:127.0.0.1:8081 ubuntu@65.2.198.192`, then point the local CLI's `control_url` at `http://127.0.0.1:18081` (or just use the public dashboard at `https://tideover.site/dashboard` instead, which needs no SSH tunnel).
+- Control API is loopback-only (`127.0.0.1:8081` on the box) — reach it from the dev machine via `ssh -i D:\liveurl.pem -L 18081:127.0.0.1:8081 ubuntu@<prod IP>`, then point the local CLI's `control_url` at `http://127.0.0.1:18081` (or just use the public dashboard at `https://tideover.site/dashboard` instead, which needs no SSH tunnel).
 - Local CLI config: `C:\Users\tehma\.liveurl\config.json` — check `server_addr`/`control_url`/`tls` before assuming which environment (local dev vs. production) a `liveurl` command will hit.
 - Production auth token: minted via `liveurld seed --email admin@tideover.site` on the box; if lost, SSH in and run `liveurld seed` again for a fresh one (or `liveurld seed --email <new>` for a distinct account).
 - Cloudflare API token (used only for `acme.sh` cert renewal on the box): scoped to "Edit zone DNS" on the `tideover.site` zone only; regenerate via Cloudflare dashboard → My Profile → API Tokens if needed.
@@ -224,7 +224,7 @@ Closed §9 item 3 from the prior session: accounts previously only existed via a
 
 ## 8a. Git / GitHub reference
 
-- Remote: `https://github.com/Tehman700/liveurl.git` (**private**, user's deliberate choice — `handout.md` documents real infra detail like the production IP and security group ID, so this stayed private rather than public; revisit if Homebrew/npm distribution ever needs it public).
+- Remote: `https://github.com/Tehman700/liveurl.git`. Started **private**, then switched to **public** (user's deliberate choice, 2026-07-10) once it became clear private was actively blocking distribution: Homebrew/npm/winget/manual-download all work by pointing at this repo's GitHub Release assets, and private-repo Release assets require an authenticated, authorized session to download — so *nobody* outside invited collaborators could install the tool at all, independent of whether the Homebrew/npm secrets ever get configured. `go install github.com/Tehman700/liveurl/cmd/liveurl@latest` was blocked the same way and now just works. Before flipping visibility, the production Elastic IP/EC2 instance ID/security group ID were pulled out of this file into `ops-notes.local.md` (gitignored) — see the note at the top of this handout.
 - `gh` CLI is **not installed** on this machine — repo creation was done manually by the user via github.com, and anything needing `gh` (PR creation, `gh api`, etc.) needs either that installed first or the equivalent done via `git`/the web UI directly. Push auth works fine as-is (`git`'s `credential.helper=manager` on Windows already handles it).
 - First tagged release: **`v0.1.0`**, pushed 2026-07-10, which fired `.github/workflows/release.yml`. Check its result at `https://github.com/Tehman700/liveurl/actions`.
 - **Known-good gap, not a bug**: that workflow's Homebrew-tap-push and npm-publish steps are expected to no-op (not fail) on this and every release until `HOMEBREW_TAP_GITHUB_TOKEN`/`NPM_TOKEN` repo secrets are configured — see §9 item 2. Fixed during this session so a missing secret degrades cleanly instead of failing the whole release (goreleaser's `skip_upload` on `homebrew_casks`, keyed off `{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}`; the npm `Publish` step checks `$NODE_AUTH_TOKEN` itself and exits 0 if unset, since the `secrets` context isn't usable in a job-level `if:`). If a real release run shows red, that means something *else* broke — check the actual job logs, don't assume it's the known secrets gap.
@@ -251,5 +251,5 @@ In rough priority order for "continue the talk":
 
 Read this file, then:
 - `cd "c:\Users\tehma\Desktop\Live URL Project"`, run `git log --oneline` and `git status` — pushed to a private GitHub remote and tagged `v0.1.0` as of 2026-07-10 (§8a). Confirm `git remote -v` still points at `https://github.com/Tehman700/liveurl.git` before assuming otherwise.
-- Confirm production is still healthy: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192 "sudo systemctl status liveurld"` and/or just visit `https://tideover.site/dashboard`. Production **is** running the signup-capable binary now (deployed 2026-07-10, §7a) — the old binary is kept at `/usr/local/bin/liveurld.bak` on the box if a rollback is ever needed.
+- Confirm production is still healthy: SSH in per `ops-notes.local.md` and run `sudo systemctl status liveurld`, and/or just visit `https://tideover.site/dashboard`. Production **is** running the signup-capable binary now (deployed 2026-07-10, §7a) — the old binary is kept at `/usr/local/bin/liveurld.bak` on the box if a rollback is ever needed.
 - If asked to "continue," the natural next steps, per the user's own priorities so far, are the remaining §9 items — most concretely, the one-time Homebrew tap / npm token setup (§9 item 2) that's still blocking those two distribution channels from actually publishing (the release workflow itself is done and degrades gracefully without them, §8a). Anything that pushes to a real remote, redeploys production, or similar remains a "visible to others / hard to reverse" action this project's own norms say to confirm with the user first (AWS provisioning, DNS changes, production redeploys, and the GitHub push/tag were all confirmed with the user before executing this session).
