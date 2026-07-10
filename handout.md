@@ -222,12 +222,22 @@ Closed §9 item 3 from the prior session: accounts previously only existed via a
 
 ---
 
+## 8a. Git / GitHub reference
+
+- Remote: `https://github.com/Tehman700/liveurl.git` (**private**, user's deliberate choice — `handout.md` documents real infra detail like the production IP and security group ID, so this stayed private rather than public; revisit if Homebrew/npm distribution ever needs it public).
+- `gh` CLI is **not installed** on this machine — repo creation was done manually by the user via github.com, and anything needing `gh` (PR creation, `gh api`, etc.) needs either that installed first or the equivalent done via `git`/the web UI directly. Push auth works fine as-is (`git`'s `credential.helper=manager` on Windows already handles it).
+- First tagged release: **`v0.1.0`**, pushed 2026-07-10, which fired `.github/workflows/release.yml`. Check its result at `https://github.com/Tehman700/liveurl/actions`.
+- **Known-good gap, not a bug**: that workflow's Homebrew-tap-push and npm-publish steps are expected to no-op (not fail) on this and every release until `HOMEBREW_TAP_GITHUB_TOKEN`/`NPM_TOKEN` repo secrets are configured — see §9 item 2. Fixed during this session so a missing secret degrades cleanly instead of failing the whole release (goreleaser's `skip_upload` on `homebrew_casks`, keyed off `{{ if index .Env "HOMEBREW_TAP_GITHUB_TOKEN" }}`; the npm `Publish` step checks `$NODE_AUTH_TOKEN` itself and exits 0 if unset, since the `secrets` context isn't usable in a job-level `if:`). If a real release run shows red, that means something *else* broke — check the actual job logs, don't assume it's the known secrets gap.
+- Local validation before trusting any of the above: `goreleaser check` (config lint) and `goreleaser release --snapshot --clean` (full local build of every OS/arch target + archives + checksums + the homebrew cask file, no publishing) both run clean as of this session.
+
+---
+
 ## 9. What's NOT done yet / open threads
 
 In rough priority order for "continue the talk":
 
-1. **Git repo exists locally but has never been pushed anywhere.** Initialized with two commits: distribution scaffolding + this handout, then the self-serve signup work (see §7a). No remote configured, no tag cut yet — goreleaser needs a real tag to produce a real release. Cutting one, and creating/pushing to a GitHub remote, is a "visible to others" action this project's own norms say to confirm with the user first (see §10).
-2. **Homebrew tap / npm publish / winget PR are all scaffolded but not executed** — each needs a one-time manual account/secret setup step from the user (see §7's Distribution section for exactly what each needs).
+1. ~~No GitHub remote, no tagged release~~ **Done** — see §8a. Pushed to the private `Tehman700/liveurl` remote and tagged `v0.1.0` on 2026-07-10; check `https://github.com/Tehman700/liveurl/actions` for that run's actual result.
+2. **Homebrew tap / npm publish / winget PR are all scaffolded but not executed** — each needs a one-time manual account/secret setup step from the user (see §7's Distribution section for exactly what each needs). The release workflow now degrades gracefully without them (§8a) rather than failing, so this is purely "not yet done," not "broken."
 3. ~~No self-serve signup~~ **Done** — see §7a. `POST /api/signup`/`/api/login` on the dashboard's API now let users create an account and get a token without an operator running `liveurld seed`. Still open beneath that: no email verification/password-reset (no outbound email sending exists anywhere in this deployment yet), and no billing/plan tiers.
 4. **Snapshot cache is passive-only** — a page is only cached if someone actually visited it while the agent was online. An active crawler (e.g. Playwright walking the app through the live tunnel) was discussed as the fast-follow.
 5. **Single edge node / single region** — no multi-node routing exists; the in-memory rate limiter and presence tracking assume this.
@@ -240,6 +250,6 @@ In rough priority order for "continue the talk":
 ## 10. How to pick this up in a new session
 
 Read this file, then:
-- `cd "c:\Users\tehma\Desktop\Live URL Project"`, run `git log --oneline` and `git status` — there **is** a local repo now (two commits: distribution scaffolding, then self-serve signup), but still **no remote and no tag**. Don't assume anything has been pushed anywhere.
+- `cd "c:\Users\tehma\Desktop\Live URL Project"`, run `git log --oneline` and `git status` — pushed to a private GitHub remote and tagged `v0.1.0` as of 2026-07-10 (§8a). Confirm `git remote -v` still points at `https://github.com/Tehman700/liveurl.git` before assuming otherwise.
 - Confirm production is still healthy: `ssh -i D:\liveurl.pem ubuntu@65.2.198.192 "sudo systemctl status liveurld"` and/or just visit `https://tideover.site/dashboard`. Production **is** running the signup-capable binary now (deployed 2026-07-10, §7a) — the old binary is kept at `/usr/local/bin/liveurld.bak` on the box if a rollback is ever needed.
-- If asked to "continue," the natural next step, per the user's own priorities so far, is: create a GitHub remote and cut a first tagged release (unlocks goreleaser + Homebrew/npm publishing, which were built but never executed end-to-end). Ask the user to confirm before pushing anything to a real GitHub remote — that's a "visible to others / hard to reverse" action per this project's own operating norms observed throughout this session (AWS provisioning, DNS changes, production redeploys, and similar were all confirmed with the user before executing).
+- If asked to "continue," the natural next steps, per the user's own priorities so far, are the remaining §9 items — most concretely, the one-time Homebrew tap / npm token setup (§9 item 2) that's still blocking those two distribution channels from actually publishing (the release workflow itself is done and degrades gracefully without them, §8a). Anything that pushes to a real remote, redeploys production, or similar remains a "visible to others / hard to reverse" action this project's own norms say to confirm with the user first (AWS provisioning, DNS changes, production redeploys, and the GitHub push/tag were all confirmed with the user before executing this session).
